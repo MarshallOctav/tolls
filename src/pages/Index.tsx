@@ -67,25 +67,80 @@ const Index = () => {
   };
 
   const handleExportToPdf = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape' });
     const tableData = filteredTools.map(tool => [
       tool.no,
       tool.name,
       tool.brandApp,
       tool.category,
       getStatusLabel(tool.status),
-      tool.pic,
       tool.note,
+      tool.pic,
     ]);
 
-    doc.text('List Tools Manajemen', 14, 15);
+    const tableHeaders = ['No', 'Nama Tools', 'Brand/App', 'Kategori', 'Status', 'Note', 'PIC'];
+
+    doc.setFontSize(18);
+    doc.text('List Tools Manajemen', 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`, 14, 28);
+
+    let startY = 34;
+
+    // Add statistics section
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Statistik Status', 14, startY);
+    startY += 7;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+
+    const col1X = 14;
+    const col2X = 80;
+    const col3X = 150;
+    const col4X = 220;
+
+    // Display stats in 4 columns
+    STATUS_OPTIONS.forEach((status, index) => {
+      const col = Math.floor(index / 2);
+      const row = index % 2;
+      const xPos = [col1X, col2X, col3X, col4X][col];
+      const yPos = startY + (row * 6);
+      doc.text(`${status.label}: ${statusCounts[status.value]}`, xPos, yPos);
+    });
+
+    startY += (Math.ceil(STATUS_OPTIONS.length / 4)) * 6 + 4;
 
     autoTable(doc, {
-      head: [['No', 'Nama Tools', 'Brand/App', 'Kategori', 'Status', 'PIC', 'Note']],
+      head: [tableHeaders],
       body: tableData,
-      startY: 20,
+      startY: startY,
       theme: 'grid',
-      headStyles: { fillColor: [41, 128, 185] },
+      headStyles: {
+        fillColor: [22, 163, 74], // Warna hijau primer
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [242, 242, 242],
+      },
+      columnStyles: {
+        0: { cellWidth: 10 }, // No
+        1: { cellWidth: 50 }, // Nama Tools
+        2: { cellWidth: 30 }, // Brand/App
+        3: { cellWidth: 30 }, // Kategori
+        4: { cellWidth: 35 }, // Status
+        5: { cellWidth: 'auto' }, // Note
+        6: { cellWidth: 25 }, // PIC
+      },
+      didDrawPage: (data) => {
+        // Footer
+        const pageCount = doc.getNumberOfPages();
+        doc.setFontSize(10);
+        doc.text(`Halaman ${data.pageNumber} dari ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+      }
     });
 
     doc.save(`List_Tools_Manajemen_${new Date().toISOString().split('T')[0]}.pdf`);
