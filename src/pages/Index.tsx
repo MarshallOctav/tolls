@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { CategorySection } from '@/components/CategorySection';
 import { StatusFilter } from '@/components/StatusFilter';
 import { initialToolsData } from '@/data/toolsData';
 import { Tool, ToolStatus, CATEGORIES, STATUS_OPTIONS } from '@/types/tool';
-import { Search, LayoutGrid } from 'lucide-react';
+import { Search, LayoutGrid, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 const Index = () => {
   const [tools, setTools] = useState<Tool[]>(initialToolsData);
@@ -18,6 +20,41 @@ const Index = () => {
         tool.id === id ? { ...tool, ...updates } : tool
       )
     );
+  };
+
+  const getStatusLabel = (status: ToolStatus) => {
+    const statusOption = STATUS_OPTIONS.find(s => s.value === status);
+    return statusOption?.label || status;
+  };
+
+  const handleExportToExcel = () => {
+    const exportData = filteredTools.map(tool => ({
+      'No': tool.no,
+      'Nama Tools': tool.name,
+      'Brand/App': tool.brandApp,
+      'Kategori': tool.category,
+      'Status': getStatusLabel(tool.status),
+      'Note': tool.note,
+      'PIC': tool.pic,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Tools');
+    
+    // Auto-size columns
+    const colWidths = [
+      { wch: 5 },   // No
+      { wch: 40 },  // Nama Tools
+      { wch: 20 },  // Brand/App
+      { wch: 20 },  // Kategori
+      { wch: 25 },  // Status
+      { wch: 30 },  // Note
+      { wch: 15 },  // PIC
+    ];
+    worksheet['!cols'] = colWidths;
+
+    XLSX.writeFile(workbook, `List_Tools_Manajemen_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // Calculate status counts
@@ -91,8 +128,8 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="flex-1 max-w-md sm:ml-auto">
-              <div className="relative">
+            <div className="flex-1 flex items-center gap-3 sm:ml-auto">
+              <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Cari tools, brand, atau PIC..."
@@ -101,6 +138,10 @@ const Index = () => {
                   className="pl-10 bg-muted/50 border-none"
                 />
               </div>
+              <Button onClick={handleExportToExcel} variant="outline" className="gap-2">
+                <Download className="w-4 h-4" />
+                <span className="hidden sm:inline">Export XLS</span>
+              </Button>
             </div>
           </div>
         </div>
