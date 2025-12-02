@@ -1,12 +1,15 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { CategorySection } from '@/components/CategorySection';
 import { StatusFilter } from '@/components/StatusFilter';
 import { initialToolsData } from '@/data/toolsData';
 import { Tool, ToolStatus, CATEGORIES, STATUS_OPTIONS } from '@/types/tool';
-import { Search, LayoutGrid, Download } from 'lucide-react';
+import { Search, LayoutGrid, Download, Upload, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [tools, setTools] = useState<Tool[]>(initialToolsData);
@@ -14,6 +17,7 @@ const Index = () => {
   const [selectedStatus, setSelectedStatus] = useState<ToolStatus | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all');
 
+  const importFileRef = useRef<HTMLInputElement>(null);
   const handleUpdateTool = (id: string, updates: Partial<Tool>) => {
     setTools(prev => 
       prev.map(tool => 
@@ -25,6 +29,11 @@ const Index = () => {
   const getStatusLabel = (status: ToolStatus) => {
     const statusOption = STATUS_OPTIONS.find(s => s.value === status);
     return statusOption?.label || status;
+  };
+
+  const getStatusValue = (label: string): ToolStatus => {
+    const statusOption = STATUS_OPTIONS.find(s => s.label.toLowerCase() === label.toLowerCase());
+    return statusOption?.value || 'pending';
   };
 
   const handleExportToExcel = () => {
@@ -57,6 +66,71 @@ const Index = () => {
     XLSX.writeFile(workbook, `List_Tools_Manajemen_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const handleExportToPdf = () => {
+    const doc = new jsPDF();
+    const tableData = filteredTools.map(tool => [
+      tool.no,
+      tool.name,
+      tool.brandApp,
+      tool.category,
+      getStatusLabel(tool.status),
+      tool.pic,
+      tool.note,
+    ]);
+
+    doc.text('List Tools Manajemen', 14, 15);
+
+    autoTable(doc, {
+      head: [['No', 'Nama Tools', 'Brand/App', 'Kategori', 'Status', 'PIC', 'Note']],
+      body: tableData,
+      startY: 20,
+      theme: 'grid',
+      headStyles: { fillColor: [41, 128, 185] },
+    });
+
+    doc.save(`List_Tools_Manajemen_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const handleImportClick = () => {
+    importFileRef.current?.click();
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json<any>(worksheet);
+
+        const importedTools: Tool[] = json.map((row, index) => ({
+          id: `${row['Kategori']?.toLowerCase()}-${row['No']}-${Date.now()}-${index}`,
+          no: row['No'],
+          name: row['Nama Tools'],
+          brandApp: row['Brand/App'],
+          category: row['Kategori'],
+          status: getStatusValue(row['Status']),
+          note: row['Note'] || '',
+          pic: row['PIC'] || '',
+        }));
+
+        setTools(importedTools);
+        toast.success(`${importedTools.length} tools berhasil diimpor.`);
+      } catch (error) {
+        console.error("Error importing file:", error);
+        toast.error("Gagal mengimpor file. Pastikan format file benar.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+
+    // Reset file input
+    event.target.value = '';
+  };
   // Calculate status counts
   const statusCounts = useMemo(() => {
     const counts: Record<ToolStatus | 'all', number> = {
@@ -137,10 +211,26 @@ const Index = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 bg-muted/50 border-none"
                 />
+                <input
+                  type="file"
+                  ref={importFileRef}
+                  onChange={handleFileImport}
+                  className="hidden"
+                  accept=".xlsx, .xls"
+                />
               </div>
+              <Button onClick={handleImportClick} variant="outline" className="gap-2">
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Import</span>
+              </Button>
               <Button onClick={handleExportToExcel} variant="outline" className="gap-2">
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Export XLS</span>
+                <span className="hidden sm:inline">XLS</span>
+              </Button>
+              <Button onClick={handleExportToPdf} variant="outline" className="gap-2">
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">PDF</span>
               </Button>
             </div>
           </div>
